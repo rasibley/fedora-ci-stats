@@ -172,7 +172,7 @@ def main():
         know_pkgs = set()
         for category in pkgs_categories:
                 know_pkgs.update(stats[category])
-        know_pkgs = sorted(list(know_pkgs))
+        know_pkgs = sorted(list(know_pkgs), key=lambda s: s.lower())
         j2_pkgs = []
         for pkg in know_pkgs:
             p = {}
