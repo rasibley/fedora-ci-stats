@@ -6,7 +6,7 @@ Page was updated on: {{updated}} UTC
 {| class="wikitable sortable"
 {% endraw %}
 ! style="text-align:left;" scope="col" rowspan="2" | Package
-! scope="col" colspan="5"| dist-git
+! scope="col" colspan="6"| dist-git
 ! scope="col" colspan="4"| upstreamfirst
 |-
 ! scope="col" | tests.yml
@@ -14,6 +14,7 @@ Page was updated on: {{updated}} UTC
 ! scope="col" | container
 ! scope="col" | atomic
 ! scope="col" | missing
+! scope="col" | pending PR
 ! scope="col" | tests.yml
 ! scope="col" | classic
 ! scope="col" | container
@@ -28,6 +29,7 @@ Page was updated on: {{updated}} UTC
 |{{total.dg_container}}
 |{{total.dg_atomic}}
 |{{total.dg_missing}}
+|{{total.dg_pending_pr}}
 |{{total.up_testsyml}}
 |{{total.up_classic}}
 |{{total.up_container}}
@@ -35,15 +37,16 @@ Page was updated on: {{updated}} UTC
 {% for pkg in pkgs %}
 |-
 ! style="text-align:left;" scope="row" | {{pkg.name}}
-|{% if pkg.dg_testsyml %} yes {% else %} '''no''' {% endif %} [https://src.fedoraproject.org/rpms/{{pkg.name}}/tree/master *]
-|{% if pkg.dg_classic %} yes {% else %} '''no''' {% endif %} 
-|{% if pkg.dg_container %} yes {% else %} '''no''' {% endif %} 
-|{% if pkg.dg_atomic %} yes {% else %} '''no''' {% endif %} 
-|{% if pkg.dg_missing %} yes {% else %} '''no''' {% endif %} 
-|{% if pkg.up_testsyml %} yes [https://upstreamfirst.fedorainfracloud.org/{{pkg.name}}/tree/master *] {% else %} '''no''' {% endif %} 
-|{% if pkg.up_classic %} yes {% else %} '''no''' {% endif %} 
-|{% if pkg.up_container %} yes {% else %} '''no''' {% endif %} 
-|{% if pkg.up_atomic %} yes {% else %} '''no''' {% endif %} 
+|{% if pkg.dg_testsyml %} yes {% else %} - {% endif %} [https://src.fedoraproject.org/rpms/{{pkg.name}}/tree/master *]
+|{% if pkg.dg_classic %} yes {% else %} - {% endif %} 
+|{% if pkg.dg_container %} yes {% else %} - {% endif %} 
+|{% if pkg.dg_atomic %} yes {% else %} - {% endif %} 
+|{% if pkg.dg_missing %} yes {% else %} - {% endif %} 
+|{% if pkg.dg_pending_pr%} yes [https://src.fedoraproject.org/rpms/{{pkg.name}}/pull-requests *] {% else %} - {% endif %} 
+|{% if pkg.up_testsyml %} yes [https://upstreamfirst.fedorainfracloud.org/{{pkg.name}}/tree/master *] {% else %} - {% endif %} 
+|{% if pkg.up_classic %} yes {% else %} - {% endif %} 
+|{% if pkg.up_container %} yes {% else %} - {% endif %} 
+|{% if pkg.up_atomic %} yes {% else %} - {% endif %} 
 {% endfor %}
 {% raw %}
 |}

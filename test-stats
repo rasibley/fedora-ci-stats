@@ -35,6 +35,7 @@ import datetime
 import tempfile
 import itertools
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -47,7 +48,11 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 IN_J2_WIKI_TEMPLATE = 'stat.j2'
 
 def retrieve(url):
-    return urllib.request.urlopen(url).read().decode('utf-8')
+    try:
+        reply = urllib.request.urlopen(url).read().decode('utf-8')
+    except urllib.error.HTTPError:
+        return "{}"
+    return reply
 
 def projects():
     url = urllib.parse.urljoin(UPSTREAM_PAGURE, "projects")
@@ -66,14 +71,17 @@ def repos():
             if line:
                 yield line.decode("utf-8")
 
-def clone(url, directory):
+def clone(url, directory, shallow=False):
     target = os.path.join(directory, os.path.basename(url))
     while os.path.exists(target):
         target += ".x"
-    try:
+    cmd = ["git", "clone"]
+    if shallow:
         # Do shallow clone with a history truncated.
-        subprocess.check_call(["git", "clone", "--depth=1", url, target],
-                              cwd=directory, stdout=sys.stderr.fileno())
+        cmd.append("--depth=1")
+    cmd.extend([url, target])
+    try:
+        subprocess.check_call(cmd, cwd=directory, stdout=sys.stderr.fileno())
     except subprocess.CalledProcessError:
         return None
     return target
@@ -123,6 +131,38 @@ def gather(repo, project, stats, location):
     if "container" in tags(repo, standard):
         count(stats, location + "-container", project)
 
+
+def has_active_pull_req(project, repo):
+    """Take into consideration only first opened PR with tests.
+    """
+    # Pagure API Reference: https://src.fedoraproject.org/api/0/
+    url = 'https://src.fedoraproject.org/api/0/rpms/%s/pull-requests' % project
+    # Opened pull requests for project:
+    pullreqs = json.loads(retrieve(url))
+    pullreqs = pullreqs.get("requests", [])
+    for pr in pullreqs:
+        pr_id = pr.get('id')
+        pr_sha1 = pr.get('commit_start')
+        if not pr_sha1:
+            continue
+        refspec = '+refs/pull/{0}/head:refs/remotes/origin/pr/{0}'.format(1)
+        cmd = ['git', 'fetch', 'origin', refspec]
+        try:
+            subprocess.check_call(cmd, cwd=repo, stdout=sys.stderr.fileno())
+        except subprocess.CalledProcessError:
+            continue
+        cmd = ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', pr_sha1, '--', 'tests/']
+        try:
+            output = subprocess.check_output(cmd, cwd=repo)
+        except subprocess.CalledProcessError:
+            continue
+        if not output:
+            # This PR is _not_ about tests.
+            continue
+        # Found active PR about tests.
+        return True
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Gather stats about tests in dist-git')
@@ -142,12 +182,18 @@ def main():
     known_repos = itertools.chain(repos(), projects())
     for project in itertools.islice(known_repos, stop):
         url = urllib.parse.urljoin(DISTGIT_BASE, project)
-        repo = clone(url, directory)
+        repo = clone(url, directory, shallow=True)
         if repo:
             count(stats, "distgit", project)
+            unmerged_pr = has_active_pull_req(project, repo)
+            if unmerged_pr:
+                count(stats, "distgit-unmerged-pr", project)
             sub = os.path.join(repo, "tests")
             if os.path.exists(sub):
                 gather(sub, project, stats, "distgit")
+            if not opts.keepworkdir:
+                # Prevent running out of free space
+                shutil.rmtree(repo)
         else:
             count(stats, "missing", project)
     # Gather statistics for upstream first projects.
@@ -157,6 +203,9 @@ def main():
         if repo:
             count(stats, "upstreamfirst", project)
             gather(repo, project, stats, "upstreamfirst")
+            if not opts.keepworkdir:
+                # Prevent running out of free space
+                shutil.rmtree(repo)
     if not opts.keepworkdir:
         shutil.rmtree(directory)
     # Dump results to stdout.
@@ -186,6 +235,7 @@ def main():
             p['up_container'] = pkg in stats.get("upstreamfirst-container", [])
             p['up_atomic'] = pkg in stats.get("upstreamfirst-atomic", [])
             p['dg_missing'] = pkg in stats.get("missing", [])
+            p['dg_pending_pr'] = pkg in stats.get("distgit-unmerged-pr", [])
             j2_pkgs.append(p)
         j2_total = {}
         j2_total['dg_testsyml'] = len(stats.get("distgit-tests.yml", []))
@@ -197,6 +247,7 @@ def main():
         j2_total['up_container'] = len(stats.get("upstreamfirst-container", []))
         j2_total['up_atomic'] = len(stats.get("upstreamfirst-atomic", []))
         j2_total['dg_missing'] = len(stats.get("missing", []))
+        j2_total['dg_pending_pr'] = len(stats.get("distgit-unmerged-pr", []))
         j2_total['known'] = len(know_pkgs)
         j2_loader = jinja2.FileSystemLoader(THIS_DIR)
         j2_env = jinja2.Environment(loader=j2_loader, trim_blocks=True)
