@@ -32,11 +32,14 @@ spec:
                   echo -e '[defaults]\nroles_path=/tmp/standard-test-roles/roles' > /tmp/ansible.cfg
                   export ANSIBLE_CONFIG=/tmp/ansible.cfg
                   pushd fedora-ci-stats
-                  ./test-stats --wikiout wdata.mw
+                  ./test-stats --wikiout wdata.mw --reposlist repos
+                  ./test-stats --wikiout wdata_hp.mw --reposlist repos_hp --onlyfilerepos
                   cat wdata.mw
+                  cat wdata_hp.mw
                   #export WIKI_USER=<YOUR FEDORA FAS LOGIN>
                   #export WIKI_PASS=<YOUR FEDORA FASS PASS>
                   ./publish2wiki.py --filedoc wdata.mw --pagepath CI/Tests/stat
+                  ./publish2wiki.py --filedoc wdata_hp.mw --pagepath CI/Tests/stat_hp
           restartPolicy: OnFailure
 
 
