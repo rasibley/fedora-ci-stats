@@ -60,14 +60,16 @@ def projects():
         if not project.get("parent"):
             yield project["name"]
 
-def repos():
+def repos(filename):
     base = os.path.dirname(__file__)
-    with open(os.path.join(base, "repos"), "rb") as f:
+    with open(os.path.join(base, filename), "rb") as f:
         while True:
             line = f.readline()
             if not line:
                 break
             line = line.strip()
+            if line.startswith(b'#'):
+                continue
             if line:
                 yield line.decode("utf-8")
 
@@ -170,6 +172,10 @@ def main():
                         help="Dump output to FILE in MediaWiki format.")
     parser.add_argument("--keepworkdir", help="Keep workdir with cloned repos.",
                         action='store_true')
+    parser.add_argument("--reposlist", metavar='REPOSFILE', default=None,
+                        help="File with repos. One repo per line.", required=True)
+    parser.add_argument("--onlyfilerepos", help="Print results only for repos in file.",
+                        action='store_true')
     parser.add_argument("--short", help="Proceed only first 10 repos.",
                         action='store_true')
     opts = parser.parse_args()
@@ -179,7 +185,7 @@ def main():
     stats = { }
     directory = tempfile.mkdtemp(prefix="test-stats")
     # Gather statistics for dist-git.
-    known_repos = itertools.chain(repos(), projects())
+    known_repos = itertools.chain(repos(opts.reposlist), projects())
     for project in itertools.islice(known_repos, stop):
         url = urllib.parse.urljoin(DISTGIT_BASE, project)
         repo = clone(url, directory, shallow=True)
@@ -198,6 +204,9 @@ def main():
             count(stats, "missing", project)
     # Gather statistics for upstream first projects.
     for project in itertools.islice(projects(), stop):
+        if opts.onlyfilerepos:
+            if project not in stats["distgit"]:
+                continue
         url = urllib.parse.urljoin(UPSTREAM_BASE, project)
         repo = clone(url, directory)
         if repo:
